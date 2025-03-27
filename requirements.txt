@@ -1,0 +1,9 @@
+numpy==1.21.6
+tensorboard==2.11.2
+docutils
+matplotlib==3.7.5
+scikit-image==0.21.0
+opencv-python==4.5.5.64
+pybullet==3.2.5
+tqdm
+

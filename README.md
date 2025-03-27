@@ -9,7 +9,7 @@
 </div>
 
 <p align="center">
-<img src="./images/agility.png" width="100%"/>
+<img src="./images/agility.jpg" width="100%"/>
 </p>
 
 ## Installation ##

@@ -43,6 +43,7 @@ pip install -r requirements.txt
 
 ## Usage ##
 ### Train BBC ###
+Go to `bbc/legged_gym/scripts` and run
 ```bash
 python train.py --task go2_locomotion --experiment_idx 0 --device_id 0 --headless True
 ```
@@ -50,7 +51,7 @@ python train.py --task go2_locomotion --experiment_idx 0 --device_id 0 --headles
 - Five behavioral modes are considered: walk, pace, trot, canter, and jump. To incorporate custom behavior modes, you'll need to extract the relevant segments from the motion capture data. For more details, please refer to our previous work [MetalHead](https://github.com/inspirai/MetalHead).
 
 ### Train TSC ###
-Before training, please copy the trained BBC model `model.pt` to `tsc/weights/bbc` (A pre-trained model has been provided).
+Before training, please copy the trained BBC model `model.pt` to `tsc/weights/bbc` (A pre-trained model has been provided). Then go to `tsc/legged_gym/scripts` and run
 ```bash
 # Train TSC-teacher
 python train.py --proj_name agility --exptid base --device_id 0 --randomize_start --randomize_base_mass --randomize_base_com --push_robots
@@ -63,12 +64,14 @@ python train.py --proj_name agility --exptid dist --device_id 0 --resume --resum
 We have used the optimized simulator parameter settings in BBC training. For more information on EASI training, please refer to our previous work [EASI](https://github.com/BlackVegetab1e/EASI).
 
 ### Play BBC ###
+Go to `bbc/legged_gym/scripts` and run
 ```bash
 python play.py --task go2_locomotion --load_run 0
 ```
 - Continuously press `W/S` for acceleration and deceleration, control steering with `A/D`, and switch behavior modes between `1-5`.
 
 ### Play TSC ###
+Go to `tsc/legged_gym/scripts` and run
 ```bash
 # Play TSC-teacher
 python play.py --proj_name agility --exptid base

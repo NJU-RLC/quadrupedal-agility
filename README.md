@@ -34,7 +34,7 @@ pip install torch==2.3.1+cu118 torchvision==0.18.1+cu118 torchaudio==2.3.1+cu118
     python 1080_balls_of_solitude.py
   ```
   - For troubleshooting, check docs in `isaacgym/docs/install.html`
-- Clone the repository and install the additional dependencies
+- Clone this repository and install the additional dependencies
 ```bash
 git clone https://github.com/NJU-RLC/quadrupedal-agility.git
 cd quadrupedal-agility

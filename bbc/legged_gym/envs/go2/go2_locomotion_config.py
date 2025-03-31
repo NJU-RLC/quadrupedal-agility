@@ -84,9 +84,9 @@ class Go2LocomotionCfg(LeggedRobotCfg):
 
         randomize_motor = True
         motor_strength_range = [0.8, 1.2]
+        use_easi = True
         # 0.stiffness_hip, 1.damping_hip, 2.stiffness_thigh,
         # 3.damping_thigh, 4.stiffness_calf, 5.damping_calf, 6.body_mass
-        use_easi = True
         easi_mean = [1.270984856442925803e+00, 1.269402596100474012e+00, 8.637638584658215990e-01,
                      8.973783516018792872e-01, 7.804512147922660903e-01, 1.069519100829913416e+00,
                      9.999999999999998890e-01]

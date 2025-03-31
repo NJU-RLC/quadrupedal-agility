@@ -220,6 +220,7 @@ class OnPolicyRunner:
             if hist_encoding:
                 mean_hist_latent_loss = self.alg.update_dagger()
 
+            # Use some observations to guide jump behavior imitation in the early stages of training
             if self.env.task_obs_weight_decay_steps:
                 self.env.task_obs_weight = max(0, self.env.task_obs_weight - 1.0 / self.env.task_obs_weight_decay_steps)
 

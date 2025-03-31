@@ -60,6 +60,12 @@ def play(args):
     camera_pos_bias = np.array([-2.8, -1.8, 1.8])
     img_idx = 0
 
+    # set initial commands
+    env.latent_c[:, :] = 0
+    env.commands[:, :] = 0
+    env.latent_c[:, 2] = 1
+    env.commands[:, 0] = 2
+
     for i in range(1000 * int(env.max_episode_length)):
         time0 = time.time()
         if not env_cfg.env.root_height_obs:

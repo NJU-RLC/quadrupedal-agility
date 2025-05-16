@@ -3,7 +3,7 @@
 <div align="center">
 
 [[Website]](https://nju-rlc.github.io/quadrupedal_agility/)
-[[Paper]]()
+[[Paper]](https://arxiv.org/abs/2505.09979)
 [[Video]](https://youtu.be/dUdg_KvlaLs)
 
 </div>
@@ -70,10 +70,13 @@ python play.py --task go2_locomotion --load_run 0
 If you found any part of this code useful, please consider citing:
 ```
 @article{fu2025learning,
-title={Learning Diverse Natural Behaviors for Enhancing the Agility of Quadrupedal Robots},
-author={Fu, Huiqiao and Dong, Haoyu and Xu, Wentao and Zhou, Zhehao and Deng, Guizhou and Tang, Kaiqiang and Dong, Daoyi and Chen, Chunlin},
-journal={ArXiv},
-year={2025}
+      title={Learning Diverse Natural Behaviors for Enhancing the Agility of Quadrupedal Robots}, 
+      author={Huiqiao Fu and Haoyu Dong and Wentao Xu and Zhehao Zhou and Guizhou Deng and Kaiqiang Tang and Daoyi Dong and Chunlin Chen},
+      year={2025},
+      eprint={2505.09979},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2505.09979}
 }
 ```
 ## References ##

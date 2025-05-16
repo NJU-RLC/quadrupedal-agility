@@ -399,7 +399,7 @@ class MotionLoader:
             frame_start = self.mocap_trajectory_full_lb[traj_idx][idx_low]
             frame_end = self.mocap_trajectory_full_lb[traj_idx][idx_high]
         else:
-            p = float(time) / self.mocap_lens_lb[traj_idx]
+            p = float(time) / self.mocap_lens_ulb[traj_idx]
             n = self.mocap_trajectory_full_ulb[traj_idx].shape[0]
             idx_low, idx_high = int(np.floor(p * n)), int(np.ceil(p * n))
             frame_start = self.mocap_trajectory_full_ulb[traj_idx][idx_low]

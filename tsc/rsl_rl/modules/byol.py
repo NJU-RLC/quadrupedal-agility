@@ -1,0 +1,317 @@
+import copy
+import random
+from functools import wraps
+
+import torch
+from torch import nn
+import torch.nn.functional as F
+import torch.distributed as dist
+
+from torchvision import transforms as T
+
+"""
+Revised from: https://github.com/lucidrains/byol-pytorch
+"""
+
+
+def default(val, def_val):
+    return def_val if val is None else val
+
+def flatten(t):
+    return t.reshape(t.shape[0], -1)
+
+def singleton(cache_key):
+    def inner_fn(fn):
+        @wraps(fn)
+        def wrapper(self, *args, **kwargs):
+            instance = getattr(self, cache_key)
+            if instance is not None:
+                return instance
+
+            instance = fn(self, *args, **kwargs)
+            setattr(self, cache_key, instance)
+            return instance
+        return wrapper
+    return inner_fn
+
+def get_module_device(module):
+    return next(module.parameters()).device
+
+def set_requires_grad(model, val):
+    for p in model.parameters():
+        p.requires_grad = val
+
+def MaybeSyncBatchnorm(is_distributed = None):
+    is_distributed = default(is_distributed, dist.is_initialized() and dist.get_world_size() > 1)
+    return nn.SyncBatchNorm if is_distributed else nn.BatchNorm1d
+
+# loss fn
+
+def loss_fn(x, y):
+    x = F.normalize(x, dim=-1, p=2)
+    y = F.normalize(y, dim=-1, p=2)
+    return 2 - 2 * (x * y).sum(dim=-1)
+
+# augmentation utils
+
+class RandomApply(nn.Module):
+    def __init__(self, fn, p):
+        super().__init__()
+        self.fn = fn
+        self.p = p
+    def forward(self, x):
+        if random.random() > self.p:
+            return x
+        return self.fn(x)
+
+# exponential moving average
+
+class EMA():
+    def __init__(self, beta):
+        super().__init__()
+        self.beta = beta
+
+    def update_average(self, old, new):
+        if old is None:
+            return new
+        return old * self.beta + (1 - self.beta) * new
+
+def update_moving_average(ema_updater, ma_model, current_model):
+    for current_params, ma_params in zip(current_model.parameters(), ma_model.parameters()):
+        old_weight, up_weight = ma_params.data, current_params.data
+        ma_params.data = ema_updater.update_average(old_weight, up_weight)
+
+# MLP class for projector and predictor
+
+def MLP(dim, projection_size, hidden_size=4096, sync_batchnorm=None):
+    return nn.Sequential(
+        nn.Linear(dim, hidden_size),
+        MaybeSyncBatchnorm(sync_batchnorm)(hidden_size),
+        nn.ReLU(inplace=True),
+        nn.Linear(hidden_size, projection_size)
+    )
+
+def SimSiamMLP(dim, projection_size, hidden_size=4096, sync_batchnorm=None):
+    return nn.Sequential(
+        nn.Linear(dim, hidden_size, bias=False),
+        MaybeSyncBatchnorm(sync_batchnorm)(hidden_size),
+        nn.ReLU(inplace=True),
+        nn.Linear(hidden_size, hidden_size, bias=False),
+        MaybeSyncBatchnorm(sync_batchnorm)(hidden_size),
+        nn.ReLU(inplace=True),
+        nn.Linear(hidden_size, projection_size, bias=False),
+        MaybeSyncBatchnorm(sync_batchnorm)(projection_size, affine=False)
+    )
+
+# a wrapper class for the base neural network
+# will manage the interception of the hidden layer output
+# and pipe it into the projecter and predictor nets
+
+class NetWrapper(nn.Module):
+    def __init__(self, net, projection_size, projection_hidden_size, layer = -2, use_simsiam_mlp = False, sync_batchnorm = None):
+        super().__init__()
+        self.net = net
+        self.layer = layer
+
+        self.projector = None
+        self.projection_size = projection_size
+        self.projection_hidden_size = projection_hidden_size
+
+        self.use_simsiam_mlp = use_simsiam_mlp
+        self.sync_batchnorm = sync_batchnorm
+
+        self.hidden = {}
+        self.hook_registered = False
+
+    def _find_layer(self):
+        if type(self.layer) == str:
+            modules = dict([*self.net.named_modules()])
+            return modules.get(self.layer, None)
+        elif type(self.layer) == int:
+            children = [*self.net.children()]
+            return children[self.layer]
+        return None
+
+    def _hook(self, _, input, output):
+        device = input[0].device
+        self.hidden[device] = flatten(output)
+
+    def _register_hook(self):
+        layer = self._find_layer()
+        assert layer is not None, f'hidden layer ({self.layer}) not found'
+        handle = layer.register_forward_hook(self._hook)
+        self.hook_registered = True
+
+    @singleton('projector')
+    def _get_projector(self, hidden):
+        _, dim = hidden.shape
+        create_mlp_fn = MLP if not self.use_simsiam_mlp else SimSiamMLP
+        projector = create_mlp_fn(dim, self.projection_size, self.projection_hidden_size, sync_batchnorm = self.sync_batchnorm)
+        return projector.to(hidden)
+
+    def get_representation(self, x):
+        if self.layer == -1:
+            return self.net(x)
+
+        if not self.hook_registered:
+            self._register_hook()
+
+        self.hidden.clear()
+        _ = self.net(x)
+        hidden = self.hidden[x.device]
+        self.hidden.clear()
+
+        assert hidden is not None, f'hidden layer {self.layer} never emitted an output'
+        return hidden
+
+    def forward(self, x, return_projection = True):
+        representation = self.get_representation(x)
+
+        if not return_projection:
+            return representation
+
+        projector = self._get_projector(representation)
+        projection = projector(representation)
+        return projection, representation
+
+# main class
+
+class BYOL(nn.Module):
+    def __init__(
+        self,
+        net,
+        image_size,
+        hidden_layer = -2,
+        projection_size = 256//4,
+        projection_hidden_size = 4096//4,
+        augment_fn = None,
+        augment_fn2 = None,
+        moving_average_decay = 0.99,
+        use_momentum = True,
+        sync_batchnorm = None
+    ):
+        super().__init__()
+        self.net = net
+
+        # default SimCLR augmentation
+
+        DEFAULT_AUG = torch.nn.Sequential(
+            RandomApply(lambda x: self.add_background_noise(x), p=0.1),
+            RandomApply(lambda x: x + torch.randn_like(x) * 0.02, p=0.1),
+            RandomApply(lambda x: x * (torch.rand_like(x) > 0.05).float(), p=0.05),
+            RandomApply(T.GaussianBlur((3, 3), (0.5, 1.5)), p=0.1)
+        )
+
+        self.augment1 = default(augment_fn, DEFAULT_AUG)
+        self.augment2 = default(augment_fn2, self.augment1)
+
+        self.online_encoder = NetWrapper(
+            net,
+            projection_size,
+            projection_hidden_size,
+            layer = hidden_layer,
+            use_simsiam_mlp = not use_momentum,
+            sync_batchnorm = sync_batchnorm
+        )
+
+        self.use_momentum = use_momentum
+        self.target_encoder = None
+        self.target_ema_updater = EMA(moving_average_decay)
+
+        self.online_predictor = MLP(projection_size, projection_size, projection_hidden_size)
+
+        # get device of network and make wrapper same device
+        device = get_module_device(net)
+        self.to(device)
+
+        # send a mock image tensor to instantiate singleton parameters
+        self.forward(torch.randn(2, image_size[0], image_size[1], device=device))
+
+    @staticmethod
+    def add_background_noise(x):
+        height, width = x.shape[1], x.shape[2]
+
+        noise_area_height = torch.randint(1, height // 4, (1,)).item()
+        noise_area_width = torch.randint(1, width // 4, (1,)).item()
+
+        top_left_x = torch.randint(0, height - noise_area_height, (1,)).item()
+        top_left_y = torch.randint(0, width - noise_area_width, (1,)).item()
+
+        if torch.rand(1) < 0.5:
+            irregular_depth_values = (torch.rand((noise_area_height, noise_area_width)) - 0.5)
+        else:
+            irregular_depth_values = (torch.zeros((noise_area_height, noise_area_width)) + (torch.rand(1).item() - 0.5))
+
+        x[:, top_left_x:top_left_x + noise_area_height,
+        top_left_y:top_left_y + noise_area_width] = irregular_depth_values
+
+        return x
+
+    @staticmethod
+    def fill_edge_holes(x, hole_size=3):
+        gradient_x = torch.abs(x[:, :, :-1] - x[:, :, 1:])
+        gradient_y = torch.abs(x[:, :-1, :] - x[:, 1:, :])
+
+        gradient_x = F.pad(gradient_x, (0, 1, 0, 0), mode='replicate')
+        gradient_y = F.pad(gradient_y, (0, 0, 1, 0), mode='replicate')
+
+        edges = (gradient_x > 0.1) | (gradient_y > 0.1)
+
+        hole_mask = F.max_pool2d(edges.float().unsqueeze(1), kernel_size=hole_size, stride=1,
+                                 padding=hole_size // 2) > 0
+
+        noise = torch.zeros_like(x) + (torch.rand(1).item() - 0.5)
+
+        filled_x = x.clone()
+        filled_x[hole_mask.squeeze(1)] += noise[hole_mask.squeeze(1)]
+
+        return filled_x
+
+    @singleton('target_encoder')
+    def _get_target_encoder(self):
+        target_encoder = copy.deepcopy(self.online_encoder)
+        set_requires_grad(target_encoder, False)
+        return target_encoder
+
+    def reset_moving_average(self):
+        del self.target_encoder
+        self.target_encoder = None
+
+    def update_moving_average(self):
+        assert self.use_momentum, 'you do not need to update the moving average, since you have turned off momentum for the target encoder'
+        assert self.target_encoder is not None, 'target encoder has not been created yet'
+        update_moving_average(self.target_ema_updater, self.target_encoder, self.online_encoder)
+
+    def forward(
+        self,
+        x,
+        return_embedding = False,
+        return_projection = True
+    ):
+        assert not (self.training and x.shape[0] == 1), 'you must have greater than 1 sample when training, due to the batchnorm in the projection layer'
+
+        if return_embedding:
+            return self.online_encoder(x, return_projection = return_projection)
+
+        image_one, image_two = self.augment1(x.clone()), self.augment2(x.clone())
+
+        images = torch.cat((image_one, image_two), dim = 0)
+
+        online_projections, _ = self.online_encoder(images)
+        online_predictions = self.online_predictor(online_projections)
+
+        online_pred_one, online_pred_two = online_predictions.chunk(2, dim = 0)
+
+        with torch.no_grad():
+            target_encoder = self._get_target_encoder() if self.use_momentum else self.online_encoder
+
+            target_projections, _ = target_encoder(images)
+            target_projections = target_projections.detach()
+
+            target_proj_one, target_proj_two = target_projections.chunk(2, dim = 0)
+
+        loss_one = loss_fn(online_pred_one, target_proj_two.detach())
+        loss_two = loss_fn(online_pred_two, target_proj_one.detach())
+
+        loss = loss_one + loss_two
+        return loss.mean()

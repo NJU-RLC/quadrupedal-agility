@@ -15,9 +15,9 @@
 ## TODO
 - [x] Release motion capture data
 - [x] Release BBC Training Pipeline
-- [ ] Release TSC-teacher Training Pipeline
-- [ ] Release TSC-student Training Pipeline
-- [ ] Release EASI Training Pipeline
+- [x] Release TSC-teacher Training Pipeline
+- [x] Release TSC-student Training Pipeline
+- [x] Release EASI Training Pipeline
 - [ ] Release motion retargeting pipeline
 - [ ] Release deployment pipeline
 
@@ -59,12 +59,36 @@ python train.py --task go2_locomotion --experiment_idx 0 --device_id 0 --headles
 - Train ~200k iterations (~4 days on 3090). The trained policy is saved in `bbc/logs/go2_locomotion/0/model.pt`.
 - Use `--resume --load_run 0` to start training from a saved checkpoint.
 
+### Train TSC ###
+Before training, please copy the trained BBC model `model.pt` to `tsc/weights/bbc` (A pre-trained model has been provided). Then go to `tsc/legged_gym/scripts` and run
+```bash
+# Train TSC-teacher
+python train.py --proj_name agility --exptid base --device_id 0 --randomize_start --randomize_base_mass --randomize_base_com --push_robots
+# Train TSC-student
+python train.py --proj_name agility --exptid dist --device_id 0 --resume --resumeid base --use_camera
+```
+- Train ~30k iterations (~20 hours on 3090) for TSC-teacher, and ~15k iterations (~17 hours on 3090) for TSC-student. The trained policies are saved in `tsc/logs/agility/base/model.pt` and `tsc/logs/agility/dist/model.pt`.
+- Use `--resume --resumeid base/dist` to start training from a saved checkpoint.
+
+### Train EASI ###
+The EASI-optimized simulator parameter settings are adopted for BBC training. More details about EASI can be found at [EASI](https://github.com/BlackVegetab1e/EASI).
+
 ### Play BBC ###
 Go to `bbc/legged_gym/scripts` and run
 ```bash
 python play.py --task go2_locomotion --load_run 0
 ```
 - Continuously press `W/S` for acceleration and deceleration, control steering with `A/D`, and switch behavior modes between `1-5`.
+
+### Play TSC ###
+Go to `tsc/legged_gym/scripts` and run
+```bash
+# Play TSC-teacher
+python play.py --proj_name agility --exptid base
+# Play TSC-student
+python play.py --proj_name agility --exptid dist --use_camera
+```
+- Switch to next/prev robot with `[ ]`, switch between free camera and following camera with `F`.
 
 ## Citation ##
 If you found any part of this code useful, please consider citing:

@@ -18,8 +18,8 @@
 - [x] Release TSC-teacher Training Pipeline
 - [x] Release TSC-student Training Pipeline
 - [x] Release EASI Training Pipeline
+- [x] Release deployment pipeline
 - [ ] Release motion retargeting pipeline
-- [ ] Release deployment pipeline
 
 ## Installation ##
 - Create a new python virtual environment with `python 3.8`
@@ -72,6 +72,11 @@ python train.py --proj_name agility --exptid dist --device_id 0 --resume --resum
 
 ### Train EASI ###
 The EASI-optimized simulator parameter settings are adopted for BBC training. More details about EASI can be found at [EASI](https://github.com/BlackVegetab1e/EASI).
+
+### Deploy on Unitree Go2 ###
+The deployment pipeline is available in `go2_deploy`. It includes Python policy entry points, LCM message types, deployment configs, and pretrained deployment checkpoints for low-level, depth/high-level, and recovery policies.
+
+See [`go2_deploy/README.md`](go2_deploy/README.md) for the Docker environment, SDK-LCM bridge setup, model paths, runtime commands, and safety checklist.
 
 ### Play BBC ###
 Go to `bbc/legged_gym/scripts` and run

@@ -1,0 +1,52 @@
+{
+  "notes": "Copy trained .pt files into go2_deploy/models or pass absolute paths on the command line. depth_box is a placeholder until its matching models are provided.",
+  "locomotion_3mode": {
+    "task": "locomotion",
+    "mode_count": 3,
+    "ll_policy": "go2_deploy/models/ll_policy/3_model/model.pt",
+    "high_policy": null,
+    "command": "python -m go2_deploy.scripts.deploy_policy_with_controller_3 --ll-policy go2_deploy/models/ll_policy/3_model/model.pt"
+  },
+  "locomotion_2mode": {
+    "task": "locomotion",
+    "mode_count": 2,
+    "ll_policy": "go2_deploy/models/ll_policy/2_model/model.pt",
+    "high_policy": null,
+    "command": "python -m go2_deploy.scripts.deploy_policy_with_controller_2 --ll-policy go2_deploy/models/ll_policy/2_model/model.pt"
+  },
+  "locomotion_5mode": {
+    "task": "locomotion",
+    "mode_count": 5,
+    "ll_policy": "go2_deploy/models/ll_policy/5_model/model.pt",
+    "high_policy": null,
+    "command": "python -m go2_deploy.scripts.deploy_policy_with_controller_5 --ll-policy go2_deploy/models/ll_policy/5_model/model.pt"
+  },
+  "depth_parkour": {
+    "task": "depth",
+    "mode_count": 3,
+    "ll_policy": "go2_deploy/models/ll_policy/3_model/model.pt",
+    "high_policy": "go2_deploy/models/high_policy/cruft/model.pt",
+    "command": "python -m go2_deploy.scripts.deploy_policy_with_depth_cruft --ll-policy go2_deploy/models/ll_policy/3_model/model.pt --high-policy go2_deploy/models/high_policy/cruft/model.pt"
+  },
+  "depth_box": {
+    "task": "depth",
+    "mode_count": 3,
+    "ll_policy": "go2_deploy/models/ll_policy/box/model.pt",
+    "high_policy": "go2_deploy/models/high_policy/box/model.pt",
+    "command": "python -m go2_deploy.scripts.deploy_policy_with_depth_box --ll-policy go2_deploy/models/ll_policy/box/model.pt --high-policy go2_deploy/models/high_policy/box/model.pt"
+  },
+  "depth_hurdle": {
+    "task": "depth",
+    "mode_count": 2,
+    "ll_policy": "go2_deploy/models/ll_policy/hurdle/model.pt",
+    "high_policy": "go2_deploy/models/high_policy/hurdle/model.pt",
+    "command": "python -m go2_deploy.scripts.deploy_policy_with_depth_hurdle --ll-policy go2_deploy/models/ll_policy/hurdle/model.pt --high-policy go2_deploy/models/high_policy/hurdle/model.pt"
+  },
+  "recover_1mode": {
+    "task": "recover",
+    "mode_count": 1,
+    "ll_policy": "go2_deploy/models/recover_policy/1_model/model.pt",
+    "high_policy": null,
+    "command": "default --recover-policy path for all entry scripts"
+  }
+}

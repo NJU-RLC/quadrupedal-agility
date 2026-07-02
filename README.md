@@ -19,7 +19,7 @@
 - [x] Release TSC-student Training Pipeline
 - [x] Release EASI Training Pipeline
 - [x] Release deployment pipeline
-- [ ] Release motion retargeting pipeline
+- [x] Release motion retargeting pipeline
 
 ## Installation ##
 - Create a new python virtual environment with `python 3.8`
